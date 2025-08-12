@@ -17,4 +17,4 @@ async def help_command(message: Message):
         "📌 /help - Ushbu yordamchi ma’lumot\n\n"
         "Savolingiz bo‘lsa, bemalol yozing!"
     )
-    await message.answer(help_text, parse_mode="Markdown")
+    await message.answer(help_text, parse_mode="MarkdownV2")

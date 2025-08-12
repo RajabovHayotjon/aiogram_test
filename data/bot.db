@@ -1,0 +1,140 @@
+import sqlite3
+from datetime import datetime
+import json
+
+DB_NAME = 'bot.db'
+
+def create_tables():
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS users (
+        user_id INTEGER PRIMARY KEY,
+        username TEXT,
+        first_name TEXT,
+        last_name TEXT,
+        phone TEXT,
+        registered_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS user_states (
+        user_id INTEGER PRIMARY KEY,
+        state TEXT,
+        data TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+    ''')
+
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS messages (
+        message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
+    )
+    ''')
+
+    conn.commit()
+    conn.close()
+
+def add_user(user_id, username=None, first_name=None, last_name=None, phone=None):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    INSERT OR IGNORE INTO users (user_id, username, first_name, last_name, phone)
+    VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, username, first_name, last_name, phone))
+
+    conn.commit()
+    conn.close()
+
+def update_user_phone(user_id, phone):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    UPDATE users SET phone = ? WHERE user_id = ?
+    ''', (phone, user_id))
+
+    conn.commit()
+    conn.close()
+
+def set_user_state(user_id, state, data=None):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    data_json = json.dumps(data) if data else None
+
+    # Agar user_states da user_id bo'lsa, update qilamiz, aks holda insert
+    cursor.execute('''
+    INSERT INTO user_states (user_id, state, data) VALUES (?, ?, ?)
+    ON CONFLICT(user_id) DO UPDATE SET state=excluded.state, data=excluded.data
+    ''', (user_id, state, data_json))
+
+    conn.commit()
+    conn.close()
+
+def get_user_state(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT state, data FROM user_states WHERE user_id = ?', (user_id,))
+    row = cursor.fetchone()
+
+    conn.close()
+    if row:
+        state, data_json = row
+        data = json.loads(data_json) if data_json else None
+        return state, data
+    else:
+        return None, None
+
+def add_message(user_id, message):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('''
+    INSERT INTO messages (user_id, message) VALUES (?, ?)
+    ''', (user_id, message))
+
+    conn.commit()
+    conn.close()
+
+def get_user_info(user_id):
+    conn = sqlite3.connect(DB_NAME)
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users WHERE user_id = ?', (user_id,))
+    user = cursor.fetchone()
+
+    conn.close()
+    return user
+
+# --- Main ---
+if __name__ == '__main__':
+    create_tables()
+
+    # Misol uchun yangi foydalanuvchi qo'shamiz
+    add_user(123456789, username='hayotjon', first_name='Hayot', last_name='Rajabov')
+
+    # Foydalanuvchi holatini o'rnatamiz
+    set_user_state(123456789, 'REGISTERING', data={'step': 1})
+
+    # Telefon raqamini yangilaymiz
+    update_user_phone(123456789, '+998901234567')
+
+    # Foydalanuvchidan kelgan xabarni qo'shamiz
+    add_message(123456789, 'Salom, bot!')
+
+    # Foydalanuvchi holatini olamiz
+    state, data = get_user_state(123456789)
+    print(f'User holati: {state}, Qo‘shimcha ma’lumot: {data}')
+
+    # Foydalanuvchi ma’lumotlarini olamiz
+    user = get_user_info(123456789)
+    print('Foydalanuvchi ma\'lumotlari:', user)

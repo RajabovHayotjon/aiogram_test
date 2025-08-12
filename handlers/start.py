@@ -1,22 +1,33 @@
+import os
 from aiogram import Router
 from aiogram.filters import CommandStart
-from aiogram.types import Message, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton
+from aiogram.types import (
+    Message,
+    ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
+    KeyboardButton
+)
 from aiogram.fsm.context import FSMContext
 from states.register import RegisterForm
-from utils import get_word
-from sessions import register_customer
-from services.openai_service import ask_chatgpt
+from utils import get_word  # Tilga mos matnlar uchun funksiya
+from sessions import register_customer  # Bazaga saqlash funksiyasi
+from services.openai_service import ask_chatgpt  # ChatGPT chaqiruvchi funksiya
 
 register_router = Router()
 
+# /start komandasi - til tanlash
 @register_router.message(CommandStart())
 async def command_start_handler(message: Message, state: FSMContext) -> None:
     await state.set_state(RegisterForm.lang)
     await state.update_data({'telegram_id': message.from_user.id})
 
     keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(text="🇺🇿 O'zbek tili"),
-                   KeyboardButton(text="🇷🇺 Русский язык")]],
+        keyboard=[
+            [
+                KeyboardButton(text="🇺🇿 O'zbek tili"),
+                KeyboardButton(text="🇷🇺 Русский язык")
+            ]
+        ],
         resize_keyboard=True
     )
 
@@ -26,6 +37,7 @@ async def command_start_handler(message: Message, state: FSMContext) -> None:
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
 
+# Til tanlash
 @register_router.message(RegisterForm.lang)
 async def lang_handler(message: Message, state: FSMContext) -> None:
     if message.text == "🇺🇿 O'zbek tili":
@@ -45,6 +57,7 @@ async def lang_handler(message: Message, state: FSMContext) -> None:
     await message.answer(text, reply_markup=ReplyKeyboardRemove(), parse_mode="HTML")
 
 
+# Ism qabul qilish
 @register_router.message(RegisterForm.name)
 async def name_handler(message: Message, state: FSMContext) -> None:
     await state.update_data({'name': message.text})
@@ -55,10 +68,14 @@ async def name_handler(message: Message, state: FSMContext) -> None:
 
     phone_button_text = "📱 Telefon raqamni yuborish" if lang == 'uz' else "📱 Отправить номер"
     phone_keyboard = ReplyKeyboardMarkup(
-        keyboard=[[KeyboardButton(
-            text=phone_button_text,
-            request_contact=True
-        )]],
+        keyboard=[
+            [
+                KeyboardButton(
+                    text=phone_button_text,
+                    request_contact=True
+                )
+            ]
+        ],
         resize_keyboard=True
     )
 
@@ -68,6 +85,7 @@ async def name_handler(message: Message, state: FSMContext) -> None:
     await message.answer(text, reply_markup=phone_keyboard, parse_mode="HTML")
 
 
+# Telefon raqam qabul qilish
 @register_router.message(RegisterForm.phone)
 async def phone_handler(message: Message, state: FSMContext) -> None:
     phone = None
@@ -85,13 +103,13 @@ async def phone_handler(message: Message, state: FSMContext) -> None:
 
     await state.update_data({'phone': phone})
 
-    # Ro'yxatdan o'tkazish
+    # Ro'yxatdan o'tkazish bazaga
     await register_customer(state)
 
     data = await state.get_data()
     lang = data.get('lang', 'uz')
 
-    # Keyingi bosqichga o'tish
+    # Suhbat rejimiga o'tish
     await state.set_state(RegisterForm.chat_mode)
 
     text1 = await get_word('registered', lang)
@@ -105,6 +123,7 @@ async def phone_handler(message: Message, state: FSMContext) -> None:
     await message.answer(text2, parse_mode="HTML")
 
 
+# ChatGPT bilan suhbat rejimi
 @register_router.message(RegisterForm.chat_mode)
 async def chat_mode_handler(message: Message, state: FSMContext) -> None:
     data = await state.get_data()
@@ -115,7 +134,11 @@ async def chat_mode_handler(message: Message, state: FSMContext) -> None:
         await message.answer(answer, parse_mode="HTML")
 
     elif message.photo:
-        text_photo = "📷 Rasm qabul qilindi. (Bu yerda rasmni qayta ishlash mumkin)" if lang == 'uz' else "📷 Фото принято. (Здесь можно обработать изображение)"
+        text_photo = (
+            "📷 Rasm qabul qilindi. (Bu yerda rasmni qayta ishlash mumkin)"
+            if lang == 'uz' else
+            "📷 Фото принято. (Здесь можно обработать изображение)"
+        )
         await message.answer(text_photo, parse_mode="HTML")
     else:
         text = "❌ Noto'g'ri format." if lang == 'uz' else "❌ Неверный формат."
